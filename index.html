@@ -53,8 +53,12 @@
 <body>
 
 <div id="ui">
-  <button onclick="correctOrder()">Correct order</button>
-  <button onclick="wrongOrder()">Wrong order</button>
+  <button onclick="setDrawOrder('RGB')">RGB order</button>
+  <button onclick="setDrawOrder('RBG')">RBG order</button>
+  <button onclick="setDrawOrder('GRB')">GRB order</button>
+  <button onclick="setDrawOrder('GBR')">GBR order</button>
+  <button onclick="setDrawOrder('BRG')">BRG order</button>
+  <button onclick="setDrawOrder('BGR')">BGR order</button>
   <button onclick="toggleDepthWrite()">Toggle depthWrite</button>
   <button onclick="resetView()">Reset angle</button>
 
@@ -63,7 +67,7 @@
   <div id="explanation">
     Three transparent convex objects: cube, sphere, and cone.<br>
     Drag the scene with your mouse to rotate the viewing angle.<br><br>
-    In wrong order, farther objects are drawn later, causing a transparency artifact.
+    The order buttons choose which color is drawn first, second, and third.
   </div>
 </div>
 
@@ -72,6 +76,7 @@
 <script>
   let scene, camera, renderer, objectGroup;
   let redCube, greenSphere, blueCone;
+  let objectsByColor;
   let depthWriteEnabled = false;
   let isDragging = false;
   let lastMouseX = 0;
@@ -113,23 +118,23 @@
     const blueMaterial = createTransparentMaterial(0x2266ff);
 
     redCube = new THREE.Mesh(
-      new THREE.BoxGeometry(1.6, 1.6, 1.6),
+      new THREE.BoxGeometry(1.15, 1.15, 1.15),
       redMaterial
     );
 
     greenSphere = new THREE.Mesh(
-      new THREE.SphereGeometry(1, 48, 32),
+      new THREE.SphereGeometry(0.7, 48, 32),
       greenMaterial
     );
 
     blueCone = new THREE.Mesh(
-      new THREE.ConeGeometry(1, 2, 48),
+      new THREE.ConeGeometry(0.7, 1.4, 48),
       blueMaterial
     );
 
-    redCube.position.set(-0.55, 0, 0.8);
-    greenSphere.position.set(0.35, 0, 0);
-    blueCone.position.set(0.9, 0, -0.8);
+    redCube.position.set(-1.8, 0, 0.9);
+    greenSphere.position.set(0, 0, 0);
+    blueCone.position.set(1.8, 0, -0.9);
 
     redCube.rotation.set(0.2, 0.5, 0.1);
     blueCone.rotation.set(0.15, -0.25, 0);
@@ -138,7 +143,13 @@
     objectGroup.add(greenSphere);
     objectGroup.add(blueCone);
 
-    correctOrder();
+    objectsByColor = {
+      R: { name: "red cube", mesh: redCube },
+      G: { name: "green sphere", mesh: greenSphere },
+      B: { name: "blue cone", mesh: blueCone }
+    };
+
+    setDrawOrder("BGR");
 
     window.addEventListener("resize", onWindowResize);
     renderer.domElement.addEventListener("mousedown", onPointerDown);
@@ -159,22 +170,20 @@
     });
   }
 
-  window.correctOrder = function correctOrder() {
-    blueCone.renderOrder = 1;
-    greenSphere.renderOrder = 2;
-    redCube.renderOrder = 3;
+  window.setDrawOrder = function setDrawOrder(order) {
+    order.split("").forEach(function(colorKey, index) {
+      objectsByColor[colorKey].mesh.renderOrder = index + 1;
+    });
+
+    const names = order
+      .split("")
+      .map(function(colorKey) {
+        return objectsByColor[colorKey].name;
+      })
+      .join(" -> ");
 
     document.getElementById("mode").innerText =
-      "Mode: Correct order - back objects are drawn first";
-  };
-
-  window.wrongOrder = function wrongOrder() {
-    redCube.renderOrder = 1;
-    greenSphere.renderOrder = 2;
-    blueCone.renderOrder = 3;
-
-    document.getElementById("mode").innerText =
-      "Mode: Wrong order - back blue cone is drawn last";
+      "Draw order: " + names;
   };
 
   window.toggleDepthWrite = function toggleDepthWrite() {
