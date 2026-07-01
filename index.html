@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Transparency Sorting Artifact Demo</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+      background: #eeeeee;
+    }
+
+    #ui {
+      position: absolute;
+      top: 15px;
+      left: 15px;
+      z-index: 10;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 12px;
+      border-radius: 8px;
+      max-width: 360px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+    }
+
+    button {
+      margin: 4px;
+      padding: 8px 10px;
+      cursor: pointer;
+    }
+
+    #mode {
+      font-weight: bold;
+      margin-top: 8px;
+    }
+
+    #explanation {
+      font-size: 14px;
+      line-height: 1.35;
+      margin-top: 8px;
+    }
+
+    canvas {
+      display: block;
+      cursor: grab;
+    }
+
+    canvas:active {
+      cursor: grabbing;
+    }
+  </style>
+</head>
+<body>
+
+<div id="ui">
+  <button onclick="correctOrder()">Correct order</button>
+  <button onclick="wrongOrder()">Wrong order</button>
+  <button onclick="toggleDepthWrite()">Toggle depthWrite</button>
+  <button onclick="resetView()">Reset angle</button>
+
+  <div id="mode">Mode: Correct order</div>
+
+  <div id="explanation">
+    Three transparent convex objects: cube, sphere, and cone.<br>
+    Drag the scene with your mouse to rotate the viewing angle.<br><br>
+    In wrong order, farther objects are drawn later, causing a transparency artifact.
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+
+<script>
+  let scene, camera, renderer, objectGroup;
+  let redCube, greenSphere, blueCone;
+  let depthWriteEnabled = false;
+  let isDragging = false;
+  let lastMouseX = 0;
+  let lastMouseY = 0;
+
+  function init() {
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xeeeeee);
+
+    camera = new THREE.PerspectiveCamera(
+      60,
+      window.innerWidth / window.innerHeight,
+      0.1,
+      100
+    );
+    camera.position.set(0, 1.5, 6);
+    camera.lookAt(0, 0, 0);
+
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+    scene.add(ambientLight);
+
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
+    directionalLight.position.set(4, 5, 6);
+    scene.add(directionalLight);
+
+    const axesHelper = new THREE.AxesHelper(2);
+    axesHelper.position.set(-3, -1.5, 0);
+    scene.add(axesHelper);
+
+    objectGroup = new THREE.Group();
+    scene.add(objectGroup);
+
+    const redMaterial = createTransparentMaterial(0xff2222);
+    const greenMaterial = createTransparentMaterial(0x22aa44);
+    const blueMaterial = createTransparentMaterial(0x2266ff);
+
+    redCube = new THREE.Mesh(
+      new THREE.BoxGeometry(1.6, 1.6, 1.6),
+      redMaterial
+    );
+
+    greenSphere = new THREE.Mesh(
+      new THREE.SphereGeometry(1, 48, 32),
+      greenMaterial
+    );
+
+    blueCone = new THREE.Mesh(
+      new THREE.ConeGeometry(1, 2, 48),
+      blueMaterial
+    );
+
+    redCube.position.set(-0.55, 0, 0.8);
+    greenSphere.position.set(0.35, 0, 0);
+    blueCone.position.set(0.9, 0, -0.8);
+
+    redCube.rotation.set(0.2, 0.5, 0.1);
+    blueCone.rotation.set(0.15, -0.25, 0);
+
+    objectGroup.add(redCube);
+    objectGroup.add(greenSphere);
+    objectGroup.add(blueCone);
+
+    correctOrder();
+
+    window.addEventListener("resize", onWindowResize);
+    renderer.domElement.addEventListener("mousedown", onPointerDown);
+    window.addEventListener("mousemove", onPointerMove);
+    window.addEventListener("mouseup", onPointerUp);
+    renderer.domElement.addEventListener("touchstart", onTouchStart, { passive: false });
+    window.addEventListener("touchmove", onTouchMove, { passive: false });
+    window.addEventListener("touchend", onPointerUp);
+  }
+
+  function createTransparentMaterial(color) {
+    return new THREE.MeshPhongMaterial({
+      color,
+      transparent: true,
+      opacity: 0.45,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    });
+  }
+
+  window.correctOrder = function correctOrder() {
+    blueCone.renderOrder = 1;
+    greenSphere.renderOrder = 2;
+    redCube.renderOrder = 3;
+
+    document.getElementById("mode").innerText =
+      "Mode: Correct order - back objects are drawn first";
+  };
+
+  window.wrongOrder = function wrongOrder() {
+    redCube.renderOrder = 1;
+    greenSphere.renderOrder = 2;
+    blueCone.renderOrder = 3;
+
+    document.getElementById("mode").innerText =
+      "Mode: Wrong order - back blue cone is drawn last";
+  };
+
+  window.toggleDepthWrite = function toggleDepthWrite() {
+    depthWriteEnabled = !depthWriteEnabled;
+
+    redCube.material.depthWrite = depthWriteEnabled;
+    greenSphere.material.depthWrite = depthWriteEnabled;
+    blueCone.material.depthWrite = depthWriteEnabled;
+
+    document.getElementById("mode").innerText =
+      "depthWrite is now: " + depthWriteEnabled;
+  };
+
+  window.resetView = function resetView() {
+    objectGroup.rotation.set(0, 0, 0);
+    document.getElementById("mode").innerText = "Angle reset";
+  };
+
+  function animate() {
+    requestAnimationFrame(animate);
+    renderer.render(scene, camera);
+  }
+
+  function onPointerDown(event) {
+    isDragging = true;
+    lastMouseX = event.clientX;
+    lastMouseY = event.clientY;
+  }
+
+  function onPointerMove(event) {
+    if (!isDragging) return;
+
+    const deltaX = event.clientX - lastMouseX;
+    const deltaY = event.clientY - lastMouseY;
+
+    objectGroup.rotation.y += deltaX * 0.01;
+    objectGroup.rotation.x += deltaY * 0.01;
+    objectGroup.rotation.x = Math.max(
+      -Math.PI / 2,
+      Math.min(Math.PI / 2, objectGroup.rotation.x)
+    );
+
+    lastMouseX = event.clientX;
+    lastMouseY = event.clientY;
+  }
+
+  function onPointerUp() {
+    isDragging = false;
+  }
+
+  function onTouchStart(event) {
+    event.preventDefault();
+    const touch = event.touches[0];
+    onPointerDown({ clientX: touch.clientX, clientY: touch.clientY });
+  }
+
+  function onTouchMove(event) {
+    event.preventDefault();
+    const touch = event.touches[0];
+    onPointerMove({ clientX: touch.clientX, clientY: touch.clientY });
+  }
+
+  function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  }
+
+  init();
+  animate();
+</script>
+
+</body>
+</html>
